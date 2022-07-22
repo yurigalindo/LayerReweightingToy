@@ -51,15 +51,17 @@ def grid_noise(noise_min,noise_max,exp,points=10,exp_times=5):
   return pd.DataFrame(experiments)
 
 
-def experiment(x_t=1,y_t=1,noise_radius=1,hidden_units=512,bottleneck=16,epochs=300,verbose=False,noise=0):
+def experiment(z=2,x_t=1,y_t=1,noise_radius=1,hidden_units=512,bottleneck=16,epochs=300,verbose=False,noise=0):
   """Possible experiments: mid, rand, alternate and reverse"""
-  df = train_label_examples(1,0,noise,noise_radius)
-  df = df.append(train_label_examples(2,1,noise,noise_radius))
+  df = train_label_examples(1,0,z=0,noise=noise,noise_radius=noise_radius)
+  df = df.append(train_label_examples(2,1,z=0,noise=noise,noise_radius=noise_radius))
   if verbose:
-    plt.scatter(df['x'],df['y'],c=df['label'])
-    plt.show()
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(df['x'],df['y'],df['z'],c=df['label'])
+    fig.show()
   NN = nn.Sequential(OrderedDict([
-          ('embeds',nn.Sequential(nn.Linear(2, hidden_units),
+          ('embeds',nn.Sequential(nn.Linear(3, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units,bottleneck),
             nn.ReLU())),
@@ -69,15 +71,19 @@ def experiment(x_t=1,y_t=1,noise_radius=1,hidden_units=512,bottleneck=16,epochs=
 
   DF = DataFrameSet(df)
   train(NN,epochs,DF,verbose)
-  df2 = test_examples(1,0,x_t,y_t)
-  df2 = df2.append(test_examples(2,1,x_t,y_t))
+  df2 = test_examples(1,0,z,x_t,y_t)
+  df2 = df2.append(test_examples(2,1,z,x_t,y_t))
   
   valid,test = train_test_split(df2,test_size=0.5)
   if verbose:
-    plt.scatter(valid['x'],valid['y'],c=valid['label'])
-    plt.show()
-    plt.scatter(test['x'],test['y'],c=test['label'])
-    plt.show()
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(valid['x'],valid['y'],valid['z'],c=valid['label'])
+    fig.show()
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(test['x'],test['y'],test['z'],c=test['label'])
+    fig.show()
   df_valid = DataFrameSet(valid)
   df_test = DataFrameSet(test)
 
@@ -92,7 +98,7 @@ def experiment(x_t=1,y_t=1,noise_radius=1,hidden_units=512,bottleneck=16,epochs=
   trained_acc = get_acc(NN,df_test)
 
   NN = nn.Sequential(OrderedDict([
-          ('embeds',nn.Sequential(nn.Linear(2, hidden_units),
+          ('embeds',nn.Sequential(nn.Linear(3, hidden_units),
             nn.ReLU(),
             nn.Linear(hidden_units,bottleneck),
             nn.ReLU())),
@@ -105,7 +111,7 @@ def experiment(x_t=1,y_t=1,noise_radius=1,hidden_units=512,bottleneck=16,epochs=
   random_acc = get_acc(NN,df_test)
   return {'before':before_acc,'LLR':trained_acc,'random':random_acc}
 
-def train_label_examples(R,label,noise=0,noise_radius=1,num_examples=2000):
+def train_label_examples(R,label,z,noise=0,noise_radius=1,num_examples=10000):
   """Returns a Dataframe with training examples of one label, in the given radius
   """
   xnums = np.linspace(-R,R,num_examples//2)
@@ -130,10 +136,11 @@ def train_label_examples(R,label,noise=0,noise_radius=1,num_examples=2000):
 
   xnums = np.append(xnums,xnums) + np.array(x_total)
   ynums = np.append(ynums,-ynums) + np.array(y_total)
+  znums = np.ones(num_examples)*z
   labels = label*np.ones_like(xnums)  
-  return pd.DataFrame({'x':xnums,'y':ynums,'label':labels})
+  return pd.DataFrame({'x':xnums,'y':ynums,'z':znums,'label':labels})
 
-def test_examples(R,label,x_t=1,y_t=1,noise=0,num_examples=2000):
+def test_examples(R,label,z,x_t=1,y_t=1,noise=0,num_examples=20000):
   """Returns a Dataframe with testing examples of one label, in the given radius
   """
   xnums = np.linspace(-R,R,num_examples//2)
@@ -142,8 +149,9 @@ def test_examples(R,label,x_t=1,y_t=1,noise=0,num_examples=2000):
   xnums += x_t
   ynums = np.append(ynums,-ynums) + noise*np.random.randn(num_examples)
   ynums += y_t
+  znums = np.ones(num_examples)*z
   labels = label*np.ones_like(xnums)
-  return pd.DataFrame({'x':xnums,'y':ynums,'label':labels})
+  return pd.DataFrame({'x':xnums,'y':ynums,'z':znums,'label':labels})
 
 def mid_examples(R,label,num_examples=4000):
   """Returns a Dataframe with testing examples of one label, in the given radius
@@ -191,7 +199,7 @@ def alternate_examples(R,label,num_examples=4000):
 
 class DataFrameSet(Dataset):
   def __init__(self,df):
-    self.x = torch.tensor(df[['x','y']].values,dtype=torch.float32)
+    self.x = torch.tensor(df[['x','y','z']].values,dtype=torch.float32)
     self.y = torch.tensor(df['label'].values,dtype=torch.float32)
   def __len__(self):
     return len(self.y)
@@ -219,9 +227,12 @@ def train(NN,epochs,dataset,verbose):
     correct = (predictions == y).float().sum()
     accs.append(correct/len(y))
   if verbose:
-    plt.plot(losses)
-    plt.plot(accs)
-    plt.show()
+    fig = plt.figure()
+    ax = fig.add_subplot()
+    ax.plot(losses)
+    fig.show()
+    ax.plot(accs)
+    fig.show()
 
 def get_acc(NN,dataset):
   with torch.no_grad():
