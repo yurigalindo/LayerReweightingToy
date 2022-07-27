@@ -5,19 +5,14 @@ from collections import OrderedDict
 class model():
     # TODO:test
     def last_layer_reweight(self):
-        for param in self.NN.parameters():
-            param.requires_grad = False
-        self.NN.fc.reset_parameters()
-        self.NN.fc.requires_grad = True
-    def reset(self):
-        for param in self.NN.parameters():
-            param.reset_parameters()    
+        for param in self.NN.embeds.parameters():
+            param.requires_grad = False 
     def train(self,epochs,dataset,verbose):
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(self.NN.parameters())
         losses = []
         accs = []
-        for i in range(epochs):
+        for _ in range(epochs):
             x,y=dataset[:]
             optimizer.zero_grad()
 
@@ -37,29 +32,28 @@ class model():
             fig.show()
             ax.plot(accs)
             fig.show()
+    def get_acc(self,dataset):
+        with torch.no_grad():
+            x,y = dataset[:]
+            preds = self.NN(x.float())
+            predictions = torch.argmax(preds,dim=1)
+            correct = (predictions == y).float().sum()
+            return correct/len(y)
 
 class bottleNN(model):
-    def __init__(self,hidden_units,bottleneck,out=2):
-        self.bottleneck = bottleneck
-        self.out = out
+    # TODO: test
+    def __init__(self,hidden_units,bottleneck,in_dim=3,out=2):
         self.hidden_units = hidden_units
+        self.bottleneck = bottleneck
+        self.in_dim = in_dim
+        self.out = out
+        self.reset()
+    def reset(self):
         self.NN = torch.nn.Sequential(OrderedDict([
-          ('embeds',torch.nn.Sequential(torch.nn.Linear(3, hidden_units),
+          ('embeds',torch.nn.Sequential(torch.nn.Linear(self.in_dim, self.hidden_units),
             torch.nn.ReLU(),
-            torch.nn.Linear(hidden_units,bottleneck),
+            torch.nn.Linear(self.hidden_units,self.bottleneck),
             torch.nn.ReLU())),
-          ('fc',torch.nn.Linear(bottleneck, out))
-          ])  
-      )
-    
-    
-
-
-
-def get_acc(NN,dataset):
-  with torch.no_grad():
-    x,y = dataset[:]
-    preds = NN(x.float())
-    predictions = torch.argmax(preds,dim=1)
-    correct = (predictions == y).float().sum()
-    return correct/len(y)
+          ('fc',torch.nn.Linear(self.bottleneck, self.out))
+          ])
+        )
