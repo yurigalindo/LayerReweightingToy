@@ -3,7 +3,6 @@ import torch
 from collections import OrderedDict
 
 class model():
-    # TODO:test
     def last_layer_reweight(self):
         for param in self.NN.embeds.parameters():
             param.requires_grad = False 
@@ -41,7 +40,6 @@ class model():
             return correct/len(y)
 
 class bottleNN(model):
-    # TODO: test
     def __init__(self,hidden_units,bottleneck,in_dim=3,out=2):
         self.hidden_units = hidden_units
         self.bottleneck = bottleneck

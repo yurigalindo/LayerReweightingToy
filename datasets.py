@@ -9,7 +9,6 @@ from sklearn.model_selection import train_test_split
 
 
 def get_dataset(ds_name,outer_r=2,higher_z=1,**kwargs):
-  # TODO: test
   df = globals()[f"{ds_name}_examples"](1,0,**kwargs)
   df = df.append(globals()[f"{ds_name}_examples"](outer_r,higher_z,**kwargs))
   return DataFrameSet(df)
@@ -83,13 +82,11 @@ class DataFrameSet(Dataset):
   def __getitem__(self,idx):
     return self.x[idx],self.y[idx]
   def plot(self):
-    # TODO: test
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     ax.scatter(self.df['x'],self.df['y'],self.df['z'],c=self.df['label'])
     fig.show()
   def train_test_split(self,**kwargs):
-    # TODO: test
     X_train, X_test = train_test_split(self.df,**kwargs)
     return DataFrameSet(X_train),DataFrameSet(X_test)
 

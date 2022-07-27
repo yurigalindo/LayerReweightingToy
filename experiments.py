@@ -5,7 +5,6 @@ from models import model
 
 def experiment(model: model,train_set: DataFrameSet,test_set,pt_epochs=300,epochs=300,verbose=False):
   """Performs a toy experiment"""
-  # TODO: test
   
   if verbose:
     train_set.plot()
