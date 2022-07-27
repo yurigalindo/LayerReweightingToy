@@ -5,7 +5,8 @@ from collections import OrderedDict
 class model():
     def last_layer_reweight(self):
         for param in self.NN.embeds.parameters():
-            param.requires_grad = False 
+            param.requires_grad = False
+        
     def train(self,epochs,dataset,verbose):
         criterion = torch.nn.CrossEntropyLoss()
         optimizer = torch.optim.Adam(self.NN.parameters())
@@ -55,3 +56,9 @@ class bottleNN(model):
           ('fc',torch.nn.Linear(self.bottleneck, self.out))
           ])
         )
+
+class bottleNN_bias(bottleNN):
+    def last_layer_reweight(self):
+        super().last_layer_reweight()
+        self.NN.fc.weight.requires_grad = False
+    
