@@ -51,10 +51,10 @@ def grid_noise(noise_min,noise_max,exp,points=10,exp_times=5):
   return pd.DataFrame(experiments)
 
 
-def experiment(hidden_units=512,bottleneck=16,epochs=300,verbose=False,exp="mid",corr=1,noise=0):
+def experiment(hidden_units=512,bottleneck=16,epochs=300,pt_epochs=300,verbose=False,exp="mid",corr=1,noise=0, outer_r=2):
   """Possible experiments: mid, rand, alternate and reverse"""
   df = train_label_examples(1,0,corr,noise)
-  df = df.append(train_label_examples(2,1,corr,noise))
+  df = df.append(train_label_examples(outer_r,1,corr,noise))
   if verbose:
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -70,7 +70,7 @@ def experiment(hidden_units=512,bottleneck=16,epochs=300,verbose=False,exp="mid"
       )
 
   DF = DataFrameSet(df)
-  train(NN,epochs,DF,verbose)
+  train(NN, pt_epochs,DF,verbose)
   df2 = globals()[f"{exp}_examples"](1,0)
   df2 = df2.append(globals()[f"{exp}_examples"](2,1))
   
@@ -88,12 +88,9 @@ def experiment(hidden_units=512,bottleneck=16,epochs=300,verbose=False,exp="mid"
   df_test = DataFrameSet(test)
 
   before_acc = get_acc(NN,df_test)
-  for param in NN.parameters():
+  for param in NN.embeds.parameters():
       param.requires_grad = False
-  NN.fc = nn.Linear(bottleneck, 2)
-  
-  
-
+  NN.fc.weight.requires_grad = False
   train(NN,epochs,df_valid,verbose)
   trained_acc = get_acc(NN,df_test)
 
