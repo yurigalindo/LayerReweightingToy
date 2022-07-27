@@ -50,8 +50,8 @@ def grid_noise(noise_min,noise_max,exp,points=10,exp_times=5):
     experiments.append(agg)
   return pd.DataFrame(experiments)
 
-
-def experiment(hidden_units=512,bottleneck=16,epochs=300,pt_epochs=300,verbose=False,exp="mid",corr=1,noise=0, outer_r=2):
+def experiment(hidden_units=512,bottleneck=16,pt_epochs=10,epochs=300,verbose=False,exp="mid",corr=1,noise=0,
+  outer_r=2,ft_test_split=0.5):
   """Possible experiments: mid, rand, alternate and reverse"""
   df = train_label_examples(1,0,corr,noise)
   df = df.append(train_label_examples(outer_r,1,corr,noise))
@@ -70,11 +70,11 @@ def experiment(hidden_units=512,bottleneck=16,epochs=300,pt_epochs=300,verbose=F
       )
 
   DF = DataFrameSet(df)
-  train(NN, pt_epochs,DF,verbose)
+  train(NN,pt_epochs,DF,verbose)
   df2 = globals()[f"{exp}_examples"](1,0)
-  df2 = df2.append(globals()[f"{exp}_examples"](2,1))
+  df2 = df2.append(globals()[f"{exp}_examples"](outer_r,1))
   
-  valid,test = train_test_split(df2,test_size=0.5)
+  valid,test = train_test_split(df2,test_size=ft_test_split)
   if verbose:
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
@@ -88,9 +88,12 @@ def experiment(hidden_units=512,bottleneck=16,epochs=300,pt_epochs=300,verbose=F
   df_test = DataFrameSet(test)
 
   before_acc = get_acc(NN,df_test)
-  for param in NN.embeds.parameters():
+  for param in NN.parameters():
       param.requires_grad = False
-  NN.fc.weight.requires_grad = False
+  NN.fc = nn.Linear(bottleneck, 2)
+  
+  
+
   train(NN,epochs,df_valid,verbose)
   trained_acc = get_acc(NN,df_test)
 
@@ -211,5 +214,3 @@ def get_acc(NN,dataset):
     predictions = torch.argmax(preds,dim=1)
     correct = (predictions == y).float().sum()
     return correct/len(y)
-
-
