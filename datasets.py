@@ -13,7 +13,7 @@ def get_dataset(ds_name,outer_r=2,higher_z=1,**kwargs):
   df = df.append(globals()[f"{ds_name}_examples"](outer_r,higher_z,**kwargs))
   return DataFrameSet(df)
 
-def train_examples(R,label,corr,noise,num_examples=2000):
+def train_examples(R,label,noise,corr=1,num_examples=2000):
   """Returns a Dataframe with testing examples of one label, in the given radius
   """
   xnums = np.linspace(-R,R,num_examples//2)
