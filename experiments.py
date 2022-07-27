@@ -3,13 +3,13 @@ from datasets import DataFrameSet
 from models import model
 
 
-def experiment(model: model,train_set: DataFrameSet,test_set: DataFrameSet,epochs=300,verbose=False):
+def experiment(model: model,train_set: DataFrameSet,test_set,pt_epochs=300,epochs=300,verbose=False):
   """Performs a toy experiment"""
   # TODO: test
   
   if verbose:
     train_set.plot()
-  model.train(epochs,train_set,verbose)
+  model.train(pt_epochs,train_set,verbose)
 
   valid,test = test_set.train_test_split(test_size=0.5)
   if verbose:
