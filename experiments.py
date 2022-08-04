@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from datasets import DataFrameSet
 from models import model
 
@@ -28,46 +29,32 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
 
   return {'before':before_acc,'LLR':trained_acc,'random':random_acc}
 
-def grid_kwarg(x_min,x_max,arg,default_args,arg_type="int",points=10,exp_times=5):
-  step = int(x_max-x_min)
-  experiments = []
-  for x in range(int(x_min*points),int(x_max*points),step):
-    x = x/points
-    if arg_type == "int":
-      x = int(x)
-    agg = None
-    for _ in range(exp_times):
-      default_args[arg]=x
-      result = experiment(**default_args)
-      if agg is None:
-        agg = result
-      else:
-        for k,v in result.items():
-          agg[k]+=v # aggregate results for mean
-    for k in agg:
-      agg[k] /= exp_times
-    agg.update({arg:x})
-    experiments.append(agg)
-  return pd.DataFrame(experiments)
+def average_over_exps(args,model,model_args,runs):
+  #TODO: epoch with max accuracy
+  #TODO: mean and std of differences i.e., LLR-BT, LLR-Rand, LLR-Before
+  agg = {}
+  for _ in range(runs):
+    args['model']=model(**model_args)
+    result = experiment(**args)   
+    if not agg:
+      for k,v in result.items():
+        agg[k]=[v] # start the aggreation
+    else:
+      for k,v in result.items():
+        agg[k].append(v) # add following results
+  result = {}
+  for k,v in agg.items():
+    result[f"{k}_mean"] = np.mean(v)
+    result[f"{k}_std"] = np.std(v)
+  return result
 
-def grid_kwarg(x_min,x_max,arg,default_args,arg_type="int",points=10,exp_times=5):
-  step = int(x_max-x_min)
+def grid_kwarg(x_min,x_max,arg,default_args,model,model_args,arg_type="int",points=10,exp_times=5):
   experiments = []
-  for x in range(int(x_min*points),int(x_max*points),step):
-    x = x/points
+  for x in np.linspace(x_min, x_max, num=points,endpoint=False):
     if arg_type == "int":
       x = int(x)
-    agg = None
-    for _ in range(exp_times):
-      default_args[arg]=x
-      result = experiment(**default_args)
-      if agg is None:
-        agg = result
-      else:
-        for k,v in result.items():
-          agg[k]+=v # aggregate results for mean
-    for k in agg:
-      agg[k] /= exp_times
+    default_args[arg]=x
+    agg = average_over_exps(default_args,model,model_args,exp_times):
     agg.update({arg:x})
     experiments.append(agg)
   return pd.DataFrame(experiments)
