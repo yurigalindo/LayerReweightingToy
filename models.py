@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import torch
+import numpy as np
 from collections import OrderedDict
 
 class model():
@@ -32,6 +33,7 @@ class model():
             fig.show()
             ax.plot(accs)
             fig.show()
+            self.contour_plot()
     def get_acc(self,dataset):
         with torch.no_grad():
             x,y = dataset[:]
@@ -39,6 +41,22 @@ class model():
             predictions = torch.argmax(preds,dim=1)
             correct = (predictions == y).float().sum()
             return correct/len(y)
+    def contour_plot(self,points=50,min_range=-2,max_range=2,z=0.5):
+        x = np.linspace(min_range,max_range, num=points,endpoint=True)
+        y = np.linspace(min_range,max_range, num=points,endpoint=True)
+        xx, yy = np.meshgrid(x, y)
+        z = z*np.ones(len(xx.flatten()))
+        dataset = torch.t(torch.tensor(np.vstack([xx.flatten(),yy.flatten(),z])))
+        out = self.NN(dataset.float())
+        out = out.detach().numpy()
+        out = out[:,0] - out[:,1]
+        out = out.reshape(xx.shape)
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        s = ax.contourf(x, y, out)
+        ax.axis('scaled')
+        fig.colorbar(s)
+        fig.show()
 
 class bottleNN(model):
     def __init__(self,hidden_units,bottleneck,in_dim=3,out=2):
@@ -62,3 +80,4 @@ class bottleNN_bias(bottleNN):
         super().last_layer_reweight()
         self.NN.fc.weight.requires_grad = False
     
+
