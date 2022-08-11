@@ -54,7 +54,7 @@ def grid_kwarg(x_min,x_max,arg,default_args,model,model_args,arg_type="int",poin
     if arg_type == "int":
       x = int(x)
     default_args[arg]=x
-    agg = average_over_exps(default_args,model,model_args,exp_times):
+    agg = average_over_exps(default_args,model,model_args,exp_times)
     agg.update({arg:x})
     experiments.append(agg)
   return pd.DataFrame(experiments)
