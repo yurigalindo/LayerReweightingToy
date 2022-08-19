@@ -8,9 +8,9 @@ from sklearn.model_selection import train_test_split
 
 
 
-def get_dataset(ds_name,outer_r=2,higher_z=1,**kwargs):
+def get_dataset(ds_name,outer_r=2,**kwargs):
   df = globals()[f"{ds_name}_examples"](1,0,**kwargs)
-  df = df.append(globals()[f"{ds_name}_examples"](outer_r,higher_z,**kwargs))
+  df = df.append(globals()[f"{ds_name}_examples"](outer_r,1,**kwargs))
   return DataFrameSet(df)
 
 def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
@@ -51,7 +51,7 @@ def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
   dataset = pd.DataFrame(dataset)
   return DataFrameSet(dataset)
 
-def train_examples(R,label,noise,corr=1,num_examples=2000):
+def train_examples(R,label,noise=0,corr=1,z=None,num_examples=2000):
   """Returns a Dataframe with testing examples of one label, in the given radius
   """
   xnums = np.linspace(-R,R,num_examples//2)
@@ -60,6 +60,8 @@ def train_examples(R,label,noise,corr=1,num_examples=2000):
   ynums = np.append(ynums,-ynums)
   labels = label*np.ones_like(xnums)
   znums = np.copy(labels)
+  if z is not None:
+    znums *= z
   idx_to_flip = random.sample(range(num_examples), int((1-corr)*num_examples))
   znums[idx_to_flip] = (1-label)
   znums += noise*(np.random.rand(num_examples) - 0.5) # 0 centered and noise norm
