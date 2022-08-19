@@ -1,12 +1,13 @@
 import pandas as pd
 import numpy as np
-from datasets import DataFrameSet
+from datasets import DataFrameSet, get_dataset
 from models import model
 
 
 def experiment(model: model,train_set: DataFrameSet,test_set: DataFrameSet,
 test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
   """Performs a toy experiment"""
+  #TODO: include bias-only model 
   
   if verbose:
     train_set.plot()
@@ -32,6 +33,7 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
 def average_over_exps(args,model,model_args,runs):
   #TODO: epoch with max accuracy
   #TODO: mean and std of differences i.e., LLR-BT, LLR-Rand, LLR-Before
+  
   agg = {}
   for _ in range(runs):
     args['model']=model(**model_args)
@@ -54,6 +56,19 @@ def grid_kwarg(x_min,x_max,arg,default_args,model,model_args,arg_type="int",poin
     if arg_type == "int":
       x = int(x)
     default_args[arg]=x
+    agg = average_over_exps(default_args,model,model_args,exp_times)
+    agg.update({arg:x})
+    experiments.append(agg)
+  return pd.DataFrame(experiments)
+
+  #TODO: Grid over dataset
+
+def grid_model(x_min,x_max,arg,default_args,model,model_args,arg_type="int",points=10,exp_times=5):
+  experiments = []
+  for x in np.linspace(x_min, x_max, num=points,endpoint=False):
+    if arg_type == "int":
+      x = int(x)
+    model_args[arg]=x
     agg = average_over_exps(default_args,model,model_args,exp_times)
     agg.update({arg:x})
     experiments.append(agg)
