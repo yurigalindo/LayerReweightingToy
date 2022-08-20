@@ -15,20 +15,22 @@ def get_dataset(ds_name,outer_r=2,**kwargs):
 
 def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
   num_examples = num_examples//2
+  regular_size = int(num_examples*(1-p_noise))
+  a_third = num_examples//3
   dataset = {}
   # Negative examples
   for i in range(linear_n):
     dataset[f'linear_{i}'] = np.random.rand(num_examples)*0.9 - 1
   for i in range(noisy_n):
-    regular = np.random.rand(int(num_examples*(1-p_noise)))*0.9 - 1
-    noisy = np.random.rand(int(num_examples*p_noise))*0.2 - 0.1
+    regular = np.random.rand(regular_size)*0.9 - 1
+    noisy = np.random.rand(num_examples - regular_size)*0.2 - 0.1
     total = np.append(regular,noisy)
     np.random.shuffle(total)
     dataset[f'noisy_{i}'] = total
   for i in range(slab5_n):
-    first_slab = np.random.rand(num_examples//3)*0.4 - 1
-    third_slab = np.random.rand(num_examples//3)*0.4 - 0.2
-    fifth_slab = np.random.rand(num_examples//3)*0.4 + 0.6
+    first_slab = np.random.rand(a_third)*0.4 - 1
+    third_slab = np.random.rand(a_third)*0.4 - 0.2
+    fifth_slab = np.random.rand(num_examples-2*a_third)*0.4 + 0.6
     dataset[f'slab5_{i}'] = np.append(first_slab,np.append(third_slab,fifth_slab))
   dataset['label'] = np.zeros(num_examples)
 
@@ -37,14 +39,14 @@ def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
     total = np.random.rand(num_examples)*0.9 + 0.1
     dataset[f'linear_{i}'] = np.append(dataset[f'linear_{i}'], total)
   for i in range(noisy_n):
-    regular = np.random.rand(int(num_examples*(1-p_noise)))*0.9 + 0.1
-    noisy = np.random.rand(int(num_examples*p_noise))*0.2 - 0.1
+    regular = np.random.rand(regular_size)*0.9 + 0.1
+    noisy = np.random.rand(num_examples - regular_size)*0.2 - 0.1
     total = np.append(regular,noisy)
     np.random.shuffle(total)
     dataset[f'noisy_{i}'] = np.append(dataset[f'noisy_{i}'], total)
   for i in range(slab5_n):
     second_slab = np.random.rand(num_examples//2)*0.4 - 0.6
-    fourth_slab = np.random.rand(num_examples//2)*0.4 + 0.2
+    fourth_slab = np.random.rand(num_examples -num_examples//2)*0.4 + 0.2
     total = np.append(second_slab,fourth_slab)
     dataset[f'slab5_{i}'] = np.append(dataset[f'slab5_{i}'], total)
   dataset['label'] = np.append(dataset['label'], np.ones(num_examples))
