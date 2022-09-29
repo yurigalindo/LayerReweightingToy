@@ -126,9 +126,14 @@ class DataFrameSet(Dataset):
     return self.x[idx],self.y[idx]
   def plot(self):
     fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-    ax.scatter(self.df.iloc[:,0],self.df.iloc[:,1],self.df.iloc[:,2],c=self.df['label'])
-    fig.show()
+    if len(self.df.columns)>=4:
+      ax = fig.add_subplot(projection='3d')
+      ax.scatter(self.df.iloc[:,0],self.df.iloc[:,1],self.df.iloc[:,2],c=self.df['label'])
+      fig.show()
+    else:
+      ax = fig.add_subplot()
+      ax.scatter(self.df.iloc[:,0],self.df.iloc[:,1],c=self.df['label'])
+      fig.show()
   def train_test_split(self,**kwargs):
     X_train, X_test = train_test_split(self.df,**kwargs)
     return DataFrameSet(X_train),DataFrameSet(X_test)
