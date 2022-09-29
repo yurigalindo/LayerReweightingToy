@@ -41,12 +41,12 @@ class model():
             predictions = torch.argmax(preds,dim=1)
             correct = (predictions == y).float().sum()
             return correct/len(y)
-    def contour_plot(self,points=50,min_range=-2,max_range=2,z=0.5):
+    def contour_plot(self,points=50,min_range=-1,max_range=1):
         x = np.linspace(min_range,max_range, num=points,endpoint=True)
         y = np.linspace(min_range,max_range, num=points,endpoint=True)
         xx, yy = np.meshgrid(x, y)
-        z = z*np.ones(len(xx.flatten()))
-        dataset = torch.t(torch.tensor(np.vstack([xx.flatten(),yy.flatten(),z])))
+        #z = z*np.ones(len(xx.flatten()))
+        dataset = torch.t(torch.tensor(np.vstack([xx.flatten(),yy.flatten()])))
         out = self.NN(dataset.float())
         out = out.detach().numpy()
         out = out[:,0] - out[:,1]
@@ -55,6 +55,7 @@ class model():
         ax = fig.add_subplot()
         s = ax.contourf(x, y, out)
         ax.axis('scaled')
+        #fig.set_size_inches(4, 4)
         fig.colorbar(s)
         fig.show()
 
