@@ -73,3 +73,32 @@ def grid_model(x_min,x_max,arg,default_args,model,model_args,arg_type="int",poin
     agg.update({arg:x})
     experiments.append(agg)
   return pd.DataFrame(experiments)
+
+
+def random_search(list_dict_args,list_dict_model_args,default_args,default_model_args,model,points=30,exp_times=3):
+  """ Expects lists of dicts with keys arg, min, max, type, and sample"""
+  experiments = []
+  for _ in range(points):
+    for arg in list_dict_args:
+      if arg["sample"]=="uniform":
+        x = np.random.uniform(arg["min"],arg["max"])
+      else:
+        x = np.random.uniform(np.log(arg["min"]),np.log(arg["max"]))
+        x = np.exp(x)
+      if arg["type"] == "int":
+        x = int(x)
+      default_args[arg["arg"]]=x
+    for arg in list_dict_model_args:
+      if arg["sample"]=="uniform":
+        x = np.random.uniform(arg["min"],arg["max"])
+      else:
+        x = np.random.uniform(np.log(arg["min"]),np.log(arg["max"]))
+        x = np.exp(x)
+      if arg["type"] == "int":
+        x = int(x)
+      default_model_args[arg["arg"]]=x    
+    agg = average_over_exps(default_args,model,default_model_args,exp_times)
+    agg.update(default_args)
+    agg.update(default_model_args)
+    experiments.append(agg)
+  return pd.DataFrame(experiments)
