@@ -3,7 +3,10 @@ import numpy as np
 import pandas as pd
 import random
 import torch
+import torchvision
+from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.datasets import ImageFolder
 from sklearn.model_selection import train_test_split
 
 
@@ -116,6 +119,8 @@ def alternate_examples(R,label,num_examples=4000):
 
 
 class DataFrameSet(Dataset):
+  """Main dataset structure, offers plot and split functionalities for datasets
+  """
   def __init__(self,df):
     self.df = df
     self.x = torch.tensor(df.iloc[:,:-1].values,dtype=torch.float32)
@@ -138,25 +143,38 @@ class DataFrameSet(Dataset):
     X_train, X_test = train_test_split(self.df,**kwargs)
     return DataFrameSet(X_train),DataFrameSet(X_test)
 
-class SimplicitySet(Dataset):
-  def __init__(self,df):
-    self.df = {}
-    self.df['X'] = df['X'].detach().numpy()
-    self.df['Y'] = df['Y'].detach().numpy()
-    self.x = df['X']
-    self.y = df['Y']
+class _ImageSet(Dataset):
+  """Creates a image dataset based on a dataframe. Intended for internal use
+  """
+  def __init__(self,df,transform = None):
+    self.transform = transform
+    self.df = df
   def __len__(self):
-    return len(self.y)
+    return len(self.df)
   def __getitem__(self,idx):
-    return self.x[idx],self.y[idx]
+    row = self.df.iloc[idx]
+    x = self.transform(Image.open(row[0])) if self.transform else Image.open(row[0])
+    return (x,row[1])
   def plot(self):
-    print("Cant plot simplicity bias dataset")
+    pass
   def train_test_split(self,**kwargs):
-    X_train, X_test = train_test_split(self.df['X'],**kwargs)
-    Y_train, Y_test = train_test_split(self.df['Y'],**kwargs)
-    return SimplicitySet({'X':torch.tensor(X_train,dtype=torch.float32),
-      'Y':torch.tensor(Y_train,dtype=torch.float32)}), SimplicitySet(
-        {'X':torch.tensor(X_test,dtype=torch.float32),
-      'Y':torch.tensor(Y_test,dtype=torch.float32)})
+    X_train, X_test = train_test_split(self.df,**kwargs)
+    return _ImageSet(X_train,self.transform),_ImageSet(X_test,self.transform)
 
+class ImageFolderSet(ImageFolder):
+  """Creates a image dataset based on a folder structure, similar to the ImageFolder class
+  """
+  def __init__(self,
+        root,
+        transform = None):
+    super().__init__(
+        root,
+        transform)
+    self.transform = transform
+    self.df = pd.DataFrame(self.samples)
+  def plot(self):
+    pass
+  def train_test_split(self,**kwargs):
+    X_train, X_test = train_test_split(self.df,**kwargs)
+    return _ImageSet(X_train,self.transform),_ImageSet(X_test,self.transform)
 
