@@ -81,4 +81,8 @@ class bottleNN_bias(bottleNN):
         super().last_layer_reweight()
         self.NN.fc.weight.requires_grad = False
     
+class resnet(model):
+    def __init__(self,model,out=2):
+        model.fc = torch.nn.Linear(model.fc.in_features,out)
+        self.NN = model
 
