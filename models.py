@@ -82,7 +82,38 @@ class bottleNN_bias(bottleNN):
         self.NN.fc.weight.requires_grad = False
     
 class resnet(model):
-    def __init__(self,model,out=2):
+    def __init__(self,model,out=2,batch_size=128):
         model.fc = torch.nn.Linear(model.fc.in_features,out)
         self.NN = model
+        self.batch_size = batch_size
+    def train(self,epochs,dataset,verbose):
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(self.NN.parameters())
+        losses = []
+        accs = []
+        total = len(dataset)
+        dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.batch_size)
+        for _ in range(epochs):
+            cum_loss = 0
+            cum_correct = 0
+            for x,y in dataloader:
+                x,y=dataset[:]
+                optimizer.zero_grad()
 
+                preds = self.NN(x.float())
+                loss = criterion(preds,y.long())
+                loss.backward()
+                optimizer.step()
+
+                cum_loss += loss.item()
+                predictions = torch.argmax(preds,dim=1)
+                cum_correct += (predictions == y).float().sum().item()
+            losses.append(cum_loss)
+            accs.append(cum_correct/total)
+        if verbose:
+            fig = plt.figure()
+            ax = fig.add_subplot()
+            ax.plot(losses)
+            fig.show()
+            ax.plot(accs)
+            fig.show()
