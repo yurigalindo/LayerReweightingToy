@@ -28,7 +28,7 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
   model.train(epochs,valid,verbose)
   random_acc = model.get_acc(test)
 
-  return {'before':before_acc,'LLR':trained_acc,'random':random_acc}
+  return {'Core-Only':before_acc,'LLR Core-Only':trained_acc,'Random Weights LLR Core-Only':random_acc}
 
 def average_over_exps(args,model,model_args,runs):
   #TODO: epoch with max accuracy
