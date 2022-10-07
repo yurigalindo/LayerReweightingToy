@@ -32,7 +32,6 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
 
 def average_over_exps(args,model,model_args,runs):
   #TODO: epoch with max accuracy
-  #TODO: mean and std of differences i.e., LLR-BT, LLR-Rand, LLR-Before
   
   agg = {}
   for _ in range(runs):
