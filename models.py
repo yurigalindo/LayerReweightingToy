@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import torch
 import numpy as np
+import copy
 from collections import OrderedDict
 
 class model():
@@ -84,6 +85,7 @@ class bottleNN_bias(bottleNN):
 class resnet(model):
     def __init__(self,model,out=2,batch_size=128):
         model.fc = torch.nn.Linear(model.fc.in_features,out)
+        self.original = copy.deepcopy(model)
         self.NN = model
         self.batch_size = batch_size
     def train(self,epochs,dataset,verbose):
@@ -92,15 +94,14 @@ class resnet(model):
         losses = []
         accs = []
         total = len(dataset)
-        dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.batch_size)
+        dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.batch_size,shuffle=True)
         for _ in range(epochs):
             cum_loss = 0
             cum_correct = 0
             for x,y in dataloader:
-                x,y=dataset[:]
                 optimizer.zero_grad()
 
-                preds = self.NN(x.float())
+                preds = self.NN(x)
                 loss = criterion(preds,y.long())
                 loss.backward()
                 optimizer.step()
@@ -117,3 +118,20 @@ class resnet(model):
             fig.show()
             ax.plot(accs)
             fig.show()
+    def get_acc(self,dataset):
+        with torch.no_grad():
+            total = len(dataset)
+            dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.batch_size*2,shuffle=True)
+            cum_correct = 0
+            for x,y in dataloader:
+                preds = self.NN(x)
+                predictions = torch.argmax(preds,dim=1)
+                cum_correct += (predictions == y).float().sum().item()
+            return cum_correct/total
+    def last_layer_reweight(self):
+        for param in self.NN.parameters():
+            param.requires_grad = False
+        for param in self.NN.fc.parameters():
+            param.requires_grad = True
+    def reset(self):
+        self.NN = self.original
