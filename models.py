@@ -97,28 +97,47 @@ class bottle_logistic(bottleNN):
         
     def train(self,epochs,dataset,verbose):
         if self.logistic is None:
-            super().train(epochs,dataset,verbose)
-        else:
-            # put a logistic on top
-            x,y = dataset[:]
-            with torch.no_grad():
-                x = self.NN.embeds(x).detach().numpy()
-            x = self.scaler.fit_transform(x)
-            y = y.numpy()
-            self.logistic.fit(x,y)
+            return super().train(epochs,dataset,verbose)
+        # put a logistic on top
+        x,y = dataset[:]
+        with torch.no_grad():
+            x = self.NN.embeds(x).detach().numpy()
+        x = self.scaler.fit_transform(x)
+        y = y.numpy()
+        self.logistic.fit(x,y)
+        if verbose:
+            self.contour_plot()
     def get_acc(self,dataset):
         if self.logistic is None:
             return super().get_acc(dataset)
-        else:
-            x,y = dataset[:]
-            with torch.no_grad():
-                x = self.NN.embeds(x).detach().numpy()
-            x = self.scaler.transform(x)
-            preds = self.logistic.predict(x)
-            correct = (preds == y.numpy()).sum()
-            return correct/len(y)
+        x,y = dataset[:]
+        with torch.no_grad():
+            x = self.NN.embeds(x).detach().numpy()
+        x = self.scaler.transform(x)
+        preds = self.logistic.predict(x)
+        correct = (preds == y.numpy()).sum()
+        return correct/len(y)
     def contour_plot(self,points=50,min_range=-1,max_range=1):
-        pass
+        if self.logistic is None:
+            return super().contour_plot(points,min_range,max_range)
+        x = np.linspace(min_range,max_range, num=points,endpoint=True)
+        y = np.linspace(min_range,max_range, num=points,endpoint=True)
+        xx, yy = np.meshgrid(x, y)
+        #z = z*np.ones(len(xx.flatten()))
+        dataset = torch.t(torch.tensor(np.vstack([xx.flatten(),yy.flatten()])))
+        with torch.no_grad():
+            out = self.NN.embeds(dataset.float()).detach().numpy()
+        out = self.scaler.transform(out)
+        out = self.logistic.predict_proba(out)
+        out = out[:,0] - out[:,1]
+        out = out.reshape(xx.shape)
+        fig = plt.figure()
+        ax = fig.add_subplot()
+        s = ax.contourf(x, y, out)
+        ax.axis('scaled')
+        #fig.set_size_inches(4, 4)
+        fig.colorbar(s)
+        fig.show()
 
 
 class resnet(model):
@@ -187,51 +206,49 @@ class resnet_logistic(resnet):
         self.scaler = StandardScaler()
     def train(self,epochs,dataset,verbose):
         if self.logistic is None:
-            super().train(epochs,dataset,verbose)
-        else:
-            # put a logistic on top
-            dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
-            x,y = next(iter(dataloader))
-            with torch.no_grad():
-                # get embeds
-                x = self.NN.conv1(x)
-                x = self.NN.bn1(x)
-                x = self.NN.relu(x)
-                x = self.NN.maxpool(x)
+            return super().train(epochs,dataset,verbose)
+        # put a logistic on top
+        dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
+        x,y = next(iter(dataloader))
+        with torch.no_grad():
+            # get embeds
+            x = self.NN.conv1(x)
+            x = self.NN.bn1(x)
+            x = self.NN.relu(x)
+            x = self.NN.maxpool(x)
 
-                x = self.NN.layer1(x)
-                x = self.NN.layer2(x)
-                x = self.NN.layer3(x)
-                x = self.NN.layer4(x)
+            x = self.NN.layer1(x)
+            x = self.NN.layer2(x)
+            x = self.NN.layer3(x)
+            x = self.NN.layer4(x)
 
-                x = self.NN.avgpool(x)
-                x = torch.flatten(x, 1)
-            x = x.detach().numpy()
-            x = self.scaler.fit_transform(x)
-            y = y.numpy()
-            self.logistic.fit(x,y)
+            x = self.NN.avgpool(x)
+            x = torch.flatten(x, 1)
+        x = x.detach().numpy()
+        x = self.scaler.fit_transform(x)
+        y = y.numpy()
+        self.logistic.fit(x,y)
     def get_acc(self,dataset):
         if self.logistic is None:
             return super().get_acc(dataset)
-        else:
-            dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
-            x,y = next(iter(dataloader))
-            with torch.no_grad():
-                # get embeds
-                x = self.NN.conv1(x)
-                x = self.NN.bn1(x)
-                x = self.NN.relu(x)
-                x = self.NN.maxpool(x)
+        dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
+        x,y = next(iter(dataloader))
+        with torch.no_grad():
+            # get embeds
+            x = self.NN.conv1(x)
+            x = self.NN.bn1(x)
+            x = self.NN.relu(x)
+            x = self.NN.maxpool(x)
 
-                x = self.NN.layer1(x)
-                x = self.NN.layer2(x)
-                x = self.NN.layer3(x)
-                x = self.NN.layer4(x)
+            x = self.NN.layer1(x)
+            x = self.NN.layer2(x)
+            x = self.NN.layer3(x)
+            x = self.NN.layer4(x)
 
-                x = self.NN.avgpool(x)
-                x = torch.flatten(x, 1)
-            x = x.detach().numpy()
-            x = self.scaler.transform(x)
-            preds = self.logistic.predict(x)
-            correct = (preds == y.numpy()).sum()
-            return correct/len(y)
+            x = self.NN.avgpool(x)
+            x = torch.flatten(x, 1)
+        x = x.detach().numpy()
+        x = self.scaler.transform(x)
+        preds = self.logistic.predict(x)
+        correct = (preds == y.numpy()).sum()
+        return correct/len(y)
