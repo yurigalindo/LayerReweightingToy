@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import torch
 import numpy as np
 import copy
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import StandardScaler
 from collections import OrderedDict
 
 class model():
@@ -81,7 +83,44 @@ class bottleNN_bias(bottleNN):
     def last_layer_reweight(self):
         super().last_layer_reweight()
         self.NN.fc.weight.requires_grad = False
-    
+
+class bottle_logistic(bottleNN):
+    def __init__(self,hidden_units,bottleneck,in_dim=3,out=2, **logistic_args):
+        super().__init__(hidden_units,bottleneck,in_dim,out)
+        self.logistic = None
+        self.logistic_args = logistic_args
+    def last_layer_reweight(self):
+        for param in self.NN.embeds.parameters():
+            param.requires_grad = False
+        self.logistic = LogisticRegression(**self.logistic_args)
+        self.scaler = StandardScaler()
+        
+    def train(self,epochs,dataset,verbose):
+        if self.logistic is None:
+            super().train(epochs,dataset,verbose)
+        else:
+            # put a logistic on top
+            x,y = dataset[:]
+            with torch.no_grad():
+                x = self.NN.embeds(x).detach().numpy()
+            x = self.scaler.fit_transform(x)
+            y = y.numpy()
+            self.logistic.fit(x,y)
+    def get_acc(self,dataset):
+        if self.logistic is None:
+            return super().get_acc(dataset)
+        else:
+            x,y = dataset[:]
+            with torch.no_grad():
+                x = self.NN.embeds(x).detach().numpy()
+            x = self.scaler.transform(x)
+            preds = self.logistic.predict(x)
+            correct = (preds == y.numpy()).sum()
+            return correct/len(y)
+    def contour_plot(self,points=50,min_range=-1,max_range=1):
+        pass
+
+
 class resnet(model):
     def __init__(self,model,out=2,batch_size=128):
         model.fc = torch.nn.Linear(model.fc.in_features,out)
@@ -135,3 +174,64 @@ class resnet(model):
             param.requires_grad = True
     def reset(self):
         self.NN = self.original
+
+class resnet_logistic(resnet):
+    def __init__(self,model,out=2,batch_size=128,**logistic_args):
+        super().__init__(model,out,batch_size)
+        self.logistic = None
+        self.logistic_args = logistic_args
+    def last_layer_reweight(self):
+        for param in self.NN.parameters():
+            param.requires_grad = False
+        self.logistic = LogisticRegression(**self.logistic_args)
+        self.scaler = StandardScaler()
+    def train(self,epochs,dataset,verbose):
+        if self.logistic is None:
+            super().train(epochs,dataset,verbose)
+        else:
+            # put a logistic on top
+            dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
+            x,y = next(iter(dataloader))
+            with torch.no_grad():
+                # get embeds
+                x = self.NN.conv1(x)
+                x = self.NN.bn1(x)
+                x = self.NN.relu(x)
+                x = self.NN.maxpool(x)
+
+                x = self.NN.layer1(x)
+                x = self.NN.layer2(x)
+                x = self.NN.layer3(x)
+                x = self.NN.layer4(x)
+
+                x = self.NN.avgpool(x)
+                x = torch.flatten(x, 1)
+            x = x.detach().numpy()
+            x = self.scaler.fit_transform(x)
+            y = y.numpy()
+            self.logistic.fit(x,y)
+    def get_acc(self,dataset):
+        if self.logistic is None:
+            return super().get_acc(dataset)
+        else:
+            dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
+            x,y = next(iter(dataloader))
+            with torch.no_grad():
+                # get embeds
+                x = self.NN.conv1(x)
+                x = self.NN.bn1(x)
+                x = self.NN.relu(x)
+                x = self.NN.maxpool(x)
+
+                x = self.NN.layer1(x)
+                x = self.NN.layer2(x)
+                x = self.NN.layer3(x)
+                x = self.NN.layer4(x)
+
+                x = self.NN.avgpool(x)
+                x = torch.flatten(x, 1)
+            x = x.detach().numpy()
+            x = self.scaler.transform(x)
+            preds = self.logistic.predict(x)
+            correct = (preds == y.numpy()).sum()
+            return correct/len(y)
