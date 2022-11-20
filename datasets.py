@@ -16,7 +16,7 @@ def get_dataset(ds_name,outer_r=2,**kwargs):
   df = df.append(globals()[f"{ds_name}_examples"](outer_r,1,**kwargs))
   return DataFrameSet(df)
 
-def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
+def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,noise_size=0.2,num_examples=2100):
   num_examples = num_examples//2
   regular_size = int(num_examples*(1-p_noise))
   a_third = num_examples//3
@@ -25,8 +25,8 @@ def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
   for i in range(linear_n):
     dataset[f'linear_{i}'] = np.random.rand(num_examples)*0.9 - 1
   for i in range(noisy_n):
-    regular = np.random.rand(regular_size)*0.9 - 1
-    noisy = np.random.rand(num_examples - regular_size)*0.2 - 0.1
+    regular = np.random.rand(regular_size)*(1-noise_size/2) - 1
+    noisy = np.random.rand(num_examples - regular_size)*noise_size - noise_size/2
     total = np.append(regular,noisy)
     np.random.shuffle(total)
     dataset[f'noisy_{i}'] = total
@@ -42,8 +42,8 @@ def simplicity_dataset(linear_n,noisy_n,slab5_n,p_noise=0.2,num_examples=2100):
     total = np.random.rand(num_examples)*0.9 + 0.1
     dataset[f'linear_{i}'] = np.append(dataset[f'linear_{i}'], total)
   for i in range(noisy_n):
-    regular = np.random.rand(regular_size)*0.9 + 0.1
-    noisy = np.random.rand(num_examples - regular_size)*0.2 - 0.1
+    regular = np.random.rand(regular_size)*(1-noise_size/2) + noise_size/2
+    noisy = np.random.rand(num_examples - regular_size)*noise_size - noise_size/2
     total = np.append(regular,noisy)
     np.random.shuffle(total)
     dataset[f'noisy_{i}'] = np.append(dataset[f'noisy_{i}'], total)
