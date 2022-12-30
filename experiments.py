@@ -5,19 +5,21 @@ from models import model
 
 
 def experiment(model: model,train_set: DataFrameSet,test_set: DataFrameSet,
-test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
+test_split=0.5,pt_epochs=300,epochs=300,verbose=False,features=False):
   """Performs a toy experiment"""
   #TODO: include bias-only model 
   
   if verbose:
     train_set.plot()
-  model.train(pt_epochs,train_set,verbose)
+  model.train(pt_epochs,train_set,verbose,False)
 
   valid,test = test_set.train_test_split(test_size=test_split)
   if verbose:
     valid.plot()
     test.plot()
 
+  if features:
+    model.contour_features()
   before_acc = model.get_acc(test)
   model.last_layer_reweight()
   model.train(epochs,valid,verbose)
