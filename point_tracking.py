@@ -16,19 +16,19 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
   criterion = torch.nn.CrossEntropyLoss()
   optimizer = torch.optim.Adam(model.NN.parameters())
 
-  noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
-  clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
+  
+  avg_noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
+  avg_clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
   for i in range(epochs//frequency):
-    last_in = None
-    last_core = None
-    last_llr = None
+    noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
+    clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
 
     # get snapshot and snapshot accuracies
     snapshot = copy.deepcopy(model.NN) 
     last_in = model.get_acc(in_set)
     last_core = model.get_acc(core_set)
     last_llr = model.get_acc(test)
-    
+
     for x,y,data_type in train_set:
         # train on this datapoint
         optimizer.zero_grad()
@@ -61,23 +61,31 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
         # recover snapshot
         model.NN = snapshot
         
+    # compile accuracies
+    for k,v in clean_accs.items():
+      array = np.array(v)
+      avg_clean_accs[k].append(np.mean(array))
+
+  
+    for k,v in noisy_accs.items():
+      array =  np.array(v)
+      avg_noisy_accs[k].append(np.mean(array))
+
     model.train(frequency-1,in_set,False) #TODO: Actually use the train set for this step
 
-  for k,v in clean_accs.items():
-    array = np.array(v)
-    clean_accs[k] = array
+  for k,v in avg_clean_accs.items():
+    avg_clean_accs[k] = np.array(v)
     plt.title(f"clean - {k}")
     plt.plot(array,label = k)
     plt.show()
   
-  for k,v in noisy_accs.items():
-    array =  np.array(v)
-    noisy_accs[k] = array
+  for k,v in avg_noisy_accs.items():
+    avg_noisy_accs[k] = np.array(v)
     plt.title(f"noisy - {k}")
     plt.plot(array,label= k)
     plt.show()
 
-  return clean_accs,noisy_accs
+  return avg_clean_accs,avg_noisy_accs
 
 
 
