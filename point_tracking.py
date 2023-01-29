@@ -16,9 +16,9 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
   criterion = torch.nn.CrossEntropyLoss()
   optimizer = torch.optim.Adam(model.NN.parameters())
 
-  
   avg_noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
   avg_clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
+
   for i in range(epochs//frequency):
     noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
     clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
@@ -66,7 +66,6 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
       array = np.array(v)
       avg_clean_accs[k].append(np.mean(array))
 
-  
     for k,v in noisy_accs.items():
       array =  np.array(v)
       avg_noisy_accs[k].append(np.mean(array))
@@ -86,7 +85,6 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
     plt.show()
 
   return avg_clean_accs,avg_noisy_accs
-
 
 
 # Datasets
