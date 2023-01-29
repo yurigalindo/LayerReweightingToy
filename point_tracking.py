@@ -62,7 +62,7 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
         model.scaler = None
 
         # recover snapshot
-        model.NN = snapshot
+        model.NN = copy.deepcopy(snapshot)
         
     # compile accuracies
     for k,v in clean_accs.items():
