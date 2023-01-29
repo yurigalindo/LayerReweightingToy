@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
+import copy
 from torch.utils.data import Dataset
 from models import bottle_logistic
 from sklearn.utils import shuffle
@@ -21,6 +22,13 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
     last_in = None
     last_core = None
     last_llr = None
+
+    # get snapshot and snapshot accuracies
+    snapshot = copy.deepcopy(model.NN) 
+    last_in = model.get_acc(in_set)
+    last_core = model.get_acc(core_set)
+    last_llr = model.get_acc(test)
+    
     for x,y,data_type in train_set:
         # train on this datapoint
         optimizer.zero_grad()
@@ -34,26 +42,24 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
         # get accs
         in_acc = model.get_acc(in_set)
         core_acc = model.get_acc(core_set)
-        if last_in:
-            type_acc['in_distribution'].append(in_acc - last_in)
-            type_acc['core-only'].append(core_acc - last_core)
-        last_in = in_acc
-        last_core = core_acc
+        type_acc['in_distribution'].append(in_acc - last_in)
+        type_acc['core-only'].append(core_acc - last_core)
 
         # do LLR
         valid,test = random_set.train_test_split()
         model.last_layer_reweight()
         model.train(None,valid,False)
         llr_acc = model.get_acc(test)
-        if last_llr:
-            type_acc['random-simple LLR'].append(llr_acc - last_llr)
-        last_llr = llr_acc
+        type_acc['random-simple LLR'].append(llr_acc - last_llr)
 
         # undo LLR
         for param in model.NN.embeds.parameters():
             param.requires_grad = True
         model.logistic = None
         model.scaler = None
+
+        # recover snapshot
+        model.NN = snapshot
         
     model.train(frequency-1,in_set,False) #TODO: Actually use the train set for this step
 
