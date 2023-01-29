@@ -27,6 +27,9 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
     snapshot = copy.deepcopy(model.NN) 
     last_in = model.get_acc(in_set)
     last_core = model.get_acc(core_set)
+    valid,test = random_set.train_test_split()
+    model.last_layer_reweight()
+    model.train(None,valid,False)
     last_llr = model.get_acc(test)
 
     for x,y,data_type in train_set:
