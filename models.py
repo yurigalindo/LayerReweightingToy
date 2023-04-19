@@ -11,9 +11,12 @@ class model():
         for param in self.NN.embeds.parameters():
             param.requires_grad = False
         
-    def train(self,epochs,dataset,verbose):
+    def train(self,epochs,dataset,verbose,optim=None):
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(self.NN.parameters())
+        if optim is not None:
+            optimizer = optim
+        else:
+            optimizer = torch.optim.Adam(self.NN.parameters())
         losses = []
         accs = []
         for _ in range(epochs):
@@ -37,6 +40,7 @@ class model():
             ax.plot(accs)
             fig.show()
             self.contour_plot()
+
     def get_acc(self,dataset):
         with torch.no_grad():
             x,y = dataset[:]
@@ -95,9 +99,9 @@ class bottle_logistic(bottleNN):
         self.logistic = LogisticRegression(**self.logistic_args)
         self.scaler = StandardScaler()
         
-    def train(self,epochs,dataset,verbose):
+    def train(self,epochs,dataset,verbose,optim=None):
         if self.logistic is None:
-            return super().train(epochs,dataset,verbose)
+            return super().train(epochs,dataset,verbose,optim=optim)
         # put a logistic on top
         x,y = dataset[:]
         with torch.no_grad():
