@@ -19,12 +19,15 @@ class model():
             optimizer = torch.optim.Adam(self.NN.parameters())
         losses = []
         accs = []
-        for _ in range(epochs):
+        T = 1
+        for i in range(epochs):
+            if i>20:
+                T = 5*(i-20)
             x,y=dataset[:]
             optimizer.zero_grad()
 
-            preds = self.NN(x.float())
-            loss = criterion(preds,y.long())
+            preds = self.NN(x.float())/T
+            loss = criterion(preds,y.long())*T
             loss.backward()
             optimizer.step()
 
