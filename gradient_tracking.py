@@ -34,6 +34,8 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loade
   clean_outputs = []
   noisy_outputs = []
   for i in range(epochs//frequency):
+    if i!=0:
+      model.temperature = (i*frequency)
     print(f"llr accuracy:{model.last_layer_reweight(random_loader,score=True)}")
     clean_grads.append(torch.zeros(len(clean_set),32)) # initialize tensor for grads for whole dataset at this epoch
     clean_outputs.append(torch.zeros(len(clean_set),32))
@@ -167,7 +169,7 @@ class CNN(nn.Module):
             image,label = image.to(device),label.to(device)
             optim.zero_grad()
             pred = self.forward(image)
-            loss = criterion(pred,label)
+            loss = criterion(pred,label)*self.temperature
             loss.backward()
             optim.step()
             total_loss+= loss.item()
@@ -200,7 +202,7 @@ class CNN(nn.Module):
         all_embeddings = np.vstack(all_embeddings)
         all_y = np.concatenate(all_y)
     X_train, X_test, y_train, y_test = train_test_split(all_embeddings,all_y,test_size=0.5)
-    clf = LogisticRegression().fit(X_train, y_train)
+    clf = LogisticRegression(max_iter=2000,penalty="l1", solver="liblinear").fit(X_train, y_train)
     if not score:
       return clf
     return clf.score(X_test,y_test)
