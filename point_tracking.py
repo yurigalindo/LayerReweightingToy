@@ -14,7 +14,6 @@ from sklearn.utils import shuffle
 def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,model_args,frequency=10):
   model = bottle_logistic(**model_args)
   criterion = torch.nn.CrossEntropyLoss()
-  optimizer = torch.optim.Adam(model.NN.parameters())
 
   avg_noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
   avg_clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
@@ -32,8 +31,15 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
     model.train(None,valid,False)
     last_llr = model.get_acc(test)
 
+    # undo LLR
+    for param in model.NN.embeds.parameters():
+        param.requires_grad = True
+    model.logistic = None
+    model.scaler = None
+
     for x,y,data_type in train_set:
         # train on this datapoint
+        optimizer = torch.optim.SGD(model.NN.parameters(),lr=1e-1)
         optimizer.zero_grad()
         preds = model.NN(x.float())
         loss = criterion(preds,y.long())
@@ -65,29 +71,138 @@ def track_datapoints_experiment(epochs,train_set,in_set,core_set,random_set,mode
         model.NN = copy.deepcopy(snapshot)
         
     # compile accuracies
+    print(clean_accs)
     for k,v in clean_accs.items():
       array = np.array(v)
       avg_clean_accs[k].append(np.mean(array))
+    print(avg_clean_accs)
 
+    print("Noisy")
+    print(noisy_accs)
     for k,v in noisy_accs.items():
       array =  np.array(v)
       avg_noisy_accs[k].append(np.mean(array))
+    print(avg_noisy_accs)
 
-    model.train(frequency-1,in_set,False) #TODO: Actually use the train set for this step
+    model.train(frequency,in_set,False)
+
+  print(f"in:{last_in} core:{last_core} llr:{last_llr}")
 
   for k,v in avg_clean_accs.items():
     avg_clean_accs[k] = np.array(v)
     plt.title(f"clean - {k}")
-    plt.plot(array,label = k)
+    plt.plot(avg_clean_accs[k],label = k)
     plt.show()
   
   for k,v in avg_noisy_accs.items():
     avg_noisy_accs[k] = np.array(v)
     plt.title(f"noisy - {k}")
-    plt.plot(array,label= k)
+    plt.plot(avg_noisy_accs[k],label= k)
     plt.show()
 
   return avg_clean_accs,avg_noisy_accs
+
+
+def track_batches_experiment(epochs,clean_set,noisy_set,in_set,core_set,random_set,model_args,frequency=10,batch_epochs=1):
+  model = bottle_logistic(**model_args)
+  criterion = torch.nn.CrossEntropyLoss()
+
+  noisy_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
+  clean_accs = {'in_distribution':[],"core-only":[],"random-simple LLR":[]}
+
+  optimizer = torch.optim.Adam(model.NN.parameters())
+  for i in range(epochs//frequency):
+    
+    # get snapshot and snapshot accuracies
+    snapshot = model.NN
+    model.NN = copy.deepcopy(snapshot) 
+    last_in = model.get_acc(in_set)
+    last_core = model.get_acc(core_set)
+    valid,test = random_set.train_test_split()
+    model.last_layer_reweight()
+    model.train(None,valid,False)
+    last_llr = model.get_acc(test)
+
+
+    # undo LLR
+    for param in model.NN.embeds.parameters():
+        param.requires_grad = True
+    model.logistic = None
+    model.scaler = None
+
+    # train clean
+    model.train(batch_epochs,clean_set,False)
+
+
+    # get accs
+    in_acc = model.get_acc(in_set)
+    core_acc = model.get_acc(core_set)
+    clean_accs['in_distribution'].append(in_acc - last_in)
+    clean_accs['core-only'].append(core_acc - last_core)
+
+    # do LLR
+    valid,test = random_set.train_test_split()
+    model.last_layer_reweight()
+    model.train(None,valid,False)
+    llr_acc = model.get_acc(test)
+    clean_accs['random-simple LLR'].append(llr_acc - last_llr)
+
+    # undo LLR
+    for param in model.NN.embeds.parameters():
+        param.requires_grad = True
+    model.logistic = None
+    model.scaler = None
+
+    # recover snapshot
+    model.NN = copy.deepcopy(snapshot)
+
+    # train noisy
+    model.train(batch_epochs,noisy_set,False)
+
+    # get accs
+    in_acc = model.get_acc(in_set)
+    core_acc = model.get_acc(core_set)
+    noisy_accs['in_distribution'].append(in_acc - last_in)
+    noisy_accs['core-only'].append(core_acc - last_core)
+
+    # do LLR
+    valid,test = random_set.train_test_split()
+    model.last_layer_reweight()
+    model.train(None,valid,False)
+    llr_acc = model.get_acc(test)
+    noisy_accs['random-simple LLR'].append(llr_acc - last_llr)
+
+    # undo LLR
+    for param in model.NN.embeds.parameters():
+        param.requires_grad = True
+    model.logistic = None
+    model.scaler = None
+
+    # recover snapshot
+    model.NN = snapshot
+
+    # train normally
+    model.train(frequency,in_set,False,optim=optimizer)
+    #print(optimizer.state_dict())
+
+  print(f"in:{last_in} core:{last_core} llr:{last_llr}")
+  for k,v in clean_accs.items():
+    clean_accs[k] = np.array(v)
+    
+    print(f"clean {k} average gain:{np.mean(v)}")
+    plt.title(f"{k}")
+    plt.plot(v,label = "clean")
+
+    noisy_accs[k] = np.array(noisy_accs[k])
+    print(f"noisy {k} average gain:{np.mean(noisy_accs[k])}")
+    plt.plot(noisy_accs[k],label = "noisy")
+
+    plt.legend()
+    plt.xlabel("Training step")
+    plt.ylabel("Accuracy gain")
+    plt.show()
+
+  return clean_accs,noisy_accs
 
 
 # Datasets
