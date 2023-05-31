@@ -138,6 +138,8 @@ class DataFrameSet(Dataset):
     else:
       ax = fig.add_subplot()
       ax.scatter(self.df.iloc[:,0],self.df.iloc[:,1],c=self.df['label'])
+      plt.xlabel('Simple Feature')
+      plt.ylabel('Complex Feature')
       fig.show()
   def train_test_split(self,**kwargs):
     X_train, X_test = train_test_split(self.df,**kwargs)
