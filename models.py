@@ -19,15 +19,12 @@ class model():
             optimizer = torch.optim.Adam(self.NN.parameters())
         losses = []
         accs = []
-        T = 1
         for i in range(epochs):
-            if i>20:
-                T = 5*(i-20)
             x,y=dataset[:]
             optimizer.zero_grad()
 
-            preds = self.NN(x.float())/T
-            loss = criterion(preds,y.long())*T
+            preds = self.NN(x.float())
+            loss = criterion(preds,y.long())
             loss.backward()
             optimizer.step()
 
@@ -66,6 +63,9 @@ class model():
         s = ax.contourf(x, y, out)
         ax.axis('scaled')
         #fig.set_size_inches(4, 4)
+        plt.xlabel('Simple Feature')
+        plt.ylabel('Complex Feature')
+        plt.title('Contour Plot Before LLR')
         fig.colorbar(s)
         fig.show()
 
@@ -143,6 +143,9 @@ class bottle_logistic(bottleNN):
         s = ax.contourf(x, y, out)
         ax.axis('scaled')
         #fig.set_size_inches(4, 4)
+        plt.xlabel('Simple Feature')
+        plt.ylabel('Complex Feature')
+        plt.title('Contour Plot After LLR')
         fig.colorbar(s)
         fig.show()
 
