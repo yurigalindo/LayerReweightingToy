@@ -70,18 +70,27 @@ class model():
         fig.show()
 
 class bottleNN(model):
-    def __init__(self,hidden_units,bottleneck,in_dim=3,out=2):
+    def __init__(self,hidden_units,bottleneck,depth=1,in_dim=3,out=2):
         self.hidden_units = hidden_units
         self.bottleneck = bottleneck
         self.in_dim = in_dim
         self.out = out
+        self.depth = depth
         self.reset()
     def reset(self):
         self.NN = torch.nn.Sequential(OrderedDict([
-          ('embeds',torch.nn.Sequential(torch.nn.Linear(self.in_dim, self.hidden_units),
-            torch.nn.ReLU(),
-            torch.nn.Linear(self.hidden_units,self.bottleneck),
-            torch.nn.ReLU())),
+          ('embeds',torch.nn.Sequential(
+                        torch.nn.Linear(self.in_dim, self.hidden_units),
+                        torch.nn.ReLU(),
+                        *[torch.nn.Sequential(
+                            torch.nn.Linear(self.hidden_units,self.hidden_units),
+                            torch.nn.ReLU()) 
+                            for _ in range((self.depth-1))
+                        ],
+                        torch.nn.Sequential(
+                            torch.nn.Linear(self.hidden_units,self.bottleneck),
+                            torch.nn.ReLU()))
+            ),
           ('fc',torch.nn.Linear(self.bottleneck, self.out))
           ])
         )
@@ -92,8 +101,8 @@ class bottleNN_bias(bottleNN):
         self.NN.fc.weight.requires_grad = False
 
 class bottle_logistic(bottleNN):
-    def __init__(self,hidden_units,bottleneck,in_dim=3,out=2, **logistic_args):
-        super().__init__(hidden_units,bottleneck,in_dim,out)
+    def __init__(self,hidden_units,bottleneck,depth=1,in_dim=3,out=2, **logistic_args):
+        super().__init__(hidden_units,bottleneck,depth,in_dim,out)
         self.logistic = None
         self.logistic_args = logistic_args
     def last_layer_reweight(self):
