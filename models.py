@@ -19,19 +19,39 @@ class model():
             optimizer = torch.optim.Adam(self.NN.parameters())
         losses = []
         accs = []
-        for i in range(epochs):
-            x,y=dataset[:]
-            optimizer.zero_grad()
+        if epochs:
+            for i in range(epochs):
+                x,y=dataset[:]
+                optimizer.zero_grad()
 
-            preds = self.NN(x.float())
-            loss = criterion(preds,y.long())
-            loss.backward()
-            optimizer.step()
+                preds = self.NN(x.float())
+                loss = criterion(preds,y.long())
+                loss.backward()
+                optimizer.step()
 
-            losses.append(loss.item())
-            predictions = torch.argmax(preds,dim=1)
-            correct = (predictions == y).float().sum()
-            accs.append(correct/len(y))
+                losses.append(loss.item())
+                predictions = torch.argmax(preds,dim=1)
+                correct = (predictions == y).float().sum()
+                accs.append(correct/len(y))
+        else:
+            last_loss = 0
+            for i in range(100000):
+                x,y=dataset[:]
+                optimizer.zero_grad()
+
+                preds = self.NN(x.float())
+                loss = criterion(preds,y.long())
+                loss.backward()
+                optimizer.step()
+
+                losses.append(loss.item())
+                predictions = torch.argmax(preds,dim=1)
+                correct = (predictions == y).float().sum()
+                accs.append(correct/len(y))
+                if abs(loss.item() - last_loss) <= 1e-6:
+                    break
+                last_loss = loss.item()
+
         if verbose:
             fig = plt.figure()
             ax = fig.add_subplot()
@@ -271,3 +291,4 @@ class resnet_logistic(resnet):
         preds = self.logistic.predict(x)
         correct = (preds == y.numpy()).sum()
         return correct/len(y)
+
