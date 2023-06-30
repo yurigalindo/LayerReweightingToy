@@ -18,6 +18,7 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
     valid.plot()
     test.plot()
 
+  train_acc = model.get_acc(train_set)
   before_acc = model.get_acc(test)
   model.last_layer_reweight()
   model.train(epochs,valid,verbose)
@@ -28,7 +29,7 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
   model.train(epochs,valid,verbose)
   random_acc = model.get_acc(test)
 
-  return {'Core-Only':before_acc,'LLR Core-Only':trained_acc,'Random Weights LLR Core-Only':random_acc}
+  return {'Train Acc': train_acc, 'Core-Only':before_acc,'LLR Core-Only':trained_acc,'Random Weights LLR Core-Only':random_acc}
 
 def average_over_exps(args,model,model_args,runs):
   #TODO: epoch with max accuracy
