@@ -11,52 +11,68 @@ from sklearn.linear_model import LogisticRegression
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loader,model,frequency=10):
-  optimizer = torch.optim.Adam(model.parameters())
+def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loader,model,bottle_size=32,frequency=10,):
+  if isinstance(model,nn.Module):
+    NN = model
+  else:
+    NN = model.NN
+  
+  optimizer = torch.optim.Adam(NN.parameters())
   loss_f = nn.CrossEntropyLoss()
-
   global grad
   grad = 0 # global variable using for storing grad of pool layer
   def update_grad(x,y,z):
     global grad
     grad = torch.squeeze(z[0])
-  model.pool.register_backward_hook(update_grad) # registering hook for storing grad
+  if isinstance(model,nn.Module):
+    NN.pool.register_backward_hook(update_grad) # registering hook for storing grad
+  else:
+    NN.embeds[-1].register_backward_hook(update_grad) # registering hook for storing grad
 
   global output
   output = 0 # global variable using for storing output of pool layer
   def update_output(x,y,z):
     global output
     output = torch.squeeze(z[0])
-  model.pool.register_forward_hook(update_output) # registering hook for storing output
+  if isinstance(model,nn.Module): 
+    NN.pool.register_forward_hook(update_output) # registering hook for storing output
+  else:
+    NN.embeds[-1].register_forward_hook(update_output) # registering hook for storing output
+  
+  valid,test = random_loader.train_test_split(test_size=0.5) # TODO: adapt for when its a dataloader
 
   clean_grads = []
   noisy_grads = []
   clean_outputs = []
   noisy_outputs = []
+  LLR_accs = []
   for i in range(epochs//frequency):
-    if i!=0:
-      model.temperature = (i*frequency)
-    print(f"llr accuracy:{model.last_layer_reweight(random_loader,score=True)}")
-    clean_grads.append(torch.zeros(len(clean_set),32)) # initialize tensor for grads for whole dataset at this epoch
-    clean_outputs.append(torch.zeros(len(clean_set),32))
+    # Get LLR acc
+    model.last_layer_reweight()
+    model.train(None,valid)
+    LLR_accs.append(model.get_acc(test))
+    model.logistic = None # Undo LLR
+
+    clean_grads.append(torch.zeros(len(clean_set),bottle_size)) # initialize tensor for grads for whole dataset at this epoch
+    clean_outputs.append(torch.zeros(len(clean_set),bottle_size))
     for j,(x,y) in enumerate(clean_set):
       x = torch.unsqueeze(x, 0).to(device)
       y = torch.unsqueeze(torch.tensor(y).to(device),0)
       optimizer.zero_grad()
-      pred = model(x)
-      loss = loss_f(pred,y)
+      pred = NN(x)
+      loss = loss_f(pred,y.type(torch.LongTensor))
       loss.backward()
       clean_grads[i][j,:] = grad.clone()
       clean_outputs[i][j,:] = output.clone().detach()
 
-    noisy_grads.append(torch.zeros(len(noisy_set),32))
-    noisy_outputs.append(torch.zeros(len(noisy_set),32))
+    noisy_grads.append(torch.zeros(len(noisy_set),bottle_size))
+    noisy_outputs.append(torch.zeros(len(noisy_set),bottle_size))
     for j,(x,y) in enumerate(noisy_set):
       x = torch.unsqueeze(x, 0).to(device)
       y = torch.unsqueeze(torch.tensor(y).to(device),0)
       optimizer.zero_grad()
-      pred = model(x)
-      loss = loss_f(pred,y)
+      pred = NN(x)
+      loss = loss_f(pred,y.type(torch.LongTensor))
       loss.backward()
       noisy_grads[i][j,:] = grad.clone()
       noisy_outputs[i][j,:] = output.clone().detach()
@@ -65,33 +81,35 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loade
   
   i = i+1
   # get grads for final time
-  clean_grads.append(torch.zeros(len(clean_set),32))
-  clean_outputs.append(torch.zeros(len(clean_set),32))
+  clean_grads.append(torch.zeros(len(clean_set),bottle_size))
+  clean_outputs.append(torch.zeros(len(clean_set),bottle_size))
   for j,(x,y) in enumerate(clean_set):
     x = torch.unsqueeze(x, 0).to(device)
     y = torch.unsqueeze(torch.tensor(y).to(device),0)
     optimizer.zero_grad()
-    pred = model(x)
-    loss = loss_f(pred,y)
+    pred = NN(x)
+    loss = loss_f(pred,y.type(torch.LongTensor))
     loss.backward()
     clean_grads[i][j,:] = grad.clone()
     clean_outputs[i][j,:] = output.clone().detach()
 
 
-  noisy_grads.append(torch.zeros(len(noisy_set),32))
-  noisy_outputs.append(torch.zeros(len(noisy_set),32))
+  noisy_grads.append(torch.zeros(len(noisy_set),bottle_size))
+  noisy_outputs.append(torch.zeros(len(noisy_set),bottle_size))
   for j,(x,y) in enumerate(noisy_set):
     x = torch.unsqueeze(x, 0).to(device)
     y = torch.unsqueeze(torch.tensor(y).to(device),0)
     optimizer.zero_grad()
-    pred = model(x)
-    loss = loss_f(pred,y)
+    pred = NN(x)
+    loss = loss_f(pred,y.type(torch.LongTensor))
     loss.backward()
     noisy_grads[i][j,:] = grad.clone()
     noisy_outputs[i][j,:] = output.clone().detach()
-
-  clf = model.last_layer_reweight(random_loader) # fit LLR for random set
-  llr_weights = torch.squeeze(torch.tensor(clf.coef_)) # get weights
+  
+  model.last_layer_reweight()
+  model.train(None,valid) # fit LLR for random set
+  LLR_accs.append(model.get_acc(test))
+  llr_weights = torch.squeeze(torch.tensor(model.logistic.coef_)) # get weights
   
   # get inner product between weights 1 x w and all gradients n*epochs x w - > grad *  w.T = n x 1
   clean_dataset = pd.DataFrame({"point_id":np.arange(len(clean_grads[0]))}) # dataframe with points
@@ -118,6 +136,7 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loade
   # get weights
   # get inner product between weights and all gradients
 
+  plt.plot(LLR_accs)
   return dataset
 
 
