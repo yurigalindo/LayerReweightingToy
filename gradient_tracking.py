@@ -11,7 +11,7 @@ from sklearn.linear_model import LogisticRegression
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loader,model,bottle_size=32,frequency=10,):
+def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,model,batch_size=None,bottle_size=32,frequency=10,):
   if isinstance(model,nn.Module):
     NN = model
   else:
@@ -39,7 +39,10 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_loade
   else:
     NN.embeds[-1].register_forward_hook(update_output) # registering hook for storing output
   
-  valid,test = random_loader.train_test_split(test_size=0.5) # TODO: adapt for when its a dataloader
+  valid,test = random_set.train_test_split(test_size=0.5)
+  if batch_size is not None:
+    valid = DataLoader(valid,batch_size,shuffle=True) # Create dataloaders when batching is necessary
+    test = DataLoader(test,batch_size,shuffle=False)
 
   clean_grads = []
   noisy_grads = []
