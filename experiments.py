@@ -1,22 +1,30 @@
 import pandas as pd
 import numpy as np
+import torch
 from datasets import DataFrameSet, get_dataset
 from models import model
+from torch.utils.data import DataLoader
 
 
 def experiment(model: model,train_set: DataFrameSet,test_set: DataFrameSet,
-test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
+test_split=0.5,pt_epochs=300,epochs=300,verbose=False,batch_size=None):
   """Performs a toy experiment"""
   #TODO: include bias-only model 
-  
+
   if verbose:
     train_set.plot()
+  if batch_size:
+    train_set = DataLoader(train_set,batch_size,shuffle=True)
   model.train(pt_epochs,train_set,verbose)
 
   valid,test = test_set.train_test_split(test_size=test_split)
   if verbose:
     valid.plot()
     test.plot()
+  if batch_size:
+    valid = DataLoader(valid,2*batch_size,shuffle=True)
+    test = DataLoader(test,2*batch_size,shuffle=False)
+  
 
   train_acc = model.get_acc(train_set)
   before_acc = model.get_acc(test)
@@ -30,6 +38,33 @@ test_split=0.5,pt_epochs=300,epochs=300,verbose=False):
   random_acc = model.get_acc(test)
 
   return {'Train Acc': train_acc, 'Core-Only':before_acc,'LLR Core-Only':trained_acc,'Random Weights LLR Core-Only':random_acc}
+
+def epoch_tracking(model: model,train_set: DataFrameSet,test_set: DataFrameSet,
+test_split=0.5,pt_epochs=300,intervals=10,epochs=300,verbose=False,batch_size=None):
+  """Perform a LLR experiment tracking LLR performance over epochs"""
+  if isinstance(model,torch.nn.Module):
+    optimizer = torch.optim.Adam(model.parameters())
+  else:
+    optimizer = torch.optim.Adam(model.NN.parameters())
+  valid,test = test_set.train_test_split(test_size=test_split)
+  if batch_size:
+    train_set = DataLoader(train_set,batch_size,shuffle=True)
+    valid = DataLoader(valid,2*batch_size,shuffle=True)
+    test = DataLoader(test,2*batch_size,shuffle=False)
+    
+  accuracies = []
+  for i in range(pt_epochs//intervals):
+    model.logistic = None
+    train_acc = model.get_acc(train_set)
+    before_acc = model.get_acc(test)
+    model.last_layer_reweight()
+    model.train(epochs,valid,verbose)
+    trained_acc = model.get_acc(test)
+    accuracies.append({'Train Acc': train_acc, 'Random-Simple':before_acc,'LLR Random-Simple':trained_acc})
+    model.logistic = None
+    model.train(intervals,train_set,verbose,optim=optimizer)
+  
+  return pd.DataFrame(accuracies)
 
 def average_over_exps(args,model,model_args,runs):
   #TODO: epoch with max accuracy
