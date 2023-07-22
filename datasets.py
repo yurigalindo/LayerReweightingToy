@@ -145,8 +145,8 @@ class DataFrameSet(Dataset):
     X_train, X_test = train_test_split(self.df,**kwargs)
     return DataFrameSet(X_train),DataFrameSet(X_test)
 
-class _ImageSet(Dataset):
-  """Creates a image dataset based on a dataframe. Intended for internal use
+class ImageSet(Dataset):
+  """Creates a image dataset based on a dataframe.
   """
   def __init__(self,df,transform = None):
     self.transform = transform
@@ -161,7 +161,7 @@ class _ImageSet(Dataset):
     pass
   def train_test_split(self,**kwargs):
     X_train, X_test = train_test_split(self.df,**kwargs)
-    return _ImageSet(X_train,self.transform),_ImageSet(X_test,self.transform)
+    return ImageSet(X_train,self.transform),ImageSet(X_test,self.transform)
 
 class ImageFolderSet(ImageFolder):
   """Creates a image dataset based on a folder structure, similar to the ImageFolder class
@@ -178,5 +178,5 @@ class ImageFolderSet(ImageFolder):
     pass
   def train_test_split(self,**kwargs):
     X_train, X_test = train_test_split(self.df,**kwargs)
-    return _ImageSet(X_train,self.transform),_ImageSet(X_test,self.transform)
+    return ImageSet(X_train,self.transform),ImageSet(X_test,self.transform)
 
