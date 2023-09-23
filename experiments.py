@@ -6,16 +6,24 @@ from models import model
 from torch.utils.data import DataLoader
 
 
-def experiment(model: model,train_set: DataFrameSet,test_set: DataFrameSet,
+def experiment(model: model,train_set: DataFrameSet,test_set: DataFrameSet,optim=None,optim_args=None,
 test_split=0.5,pt_epochs=300,epochs=300,verbose=False,batch_size=None):
   """Performs a toy experiment"""
   #TODO: include bias-only model 
 
+  if optim:
+    if isinstance(model,torch.nn.Module):
+      NN = model
+    else:
+      NN = model.NN
+    optimizer = optim(NN.parameters(),**optim_args)
+  else:
+    optimizer = None
   if verbose:
     train_set.plot()
   if batch_size:
     train_set = DataLoader(train_set,batch_size,shuffle=True)
-  model.train(pt_epochs,train_set,verbose)
+  model.train(pt_epochs,train_set,verbose=verbose,optim=optimizer)
 
   valid,test = test_set.train_test_split(test_size=test_split)
   if verbose:
@@ -45,7 +53,9 @@ test_split=0.5,pt_epochs=300,intervals=10,epochs=300,verbose=False,batch_size=No
   if isinstance(model,torch.nn.Module):
     optimizer = torch.optim.Adam(model.parameters())
   else:
-    optimizer = torch.optim.Adam(model.NN.parameters())
+    # optimizer = torch.optim.Adam(model.NN.parameters())
+    # For waterbirds:
+    optimizer = torch.optim.SGD(model.NN.parameters(),lr=1e-3,weight_decay=1e-2,momentum=0.9)
   valid,test = test_set.train_test_split(test_size=test_split)
   if batch_size:
     train_set = DataLoader(train_set,batch_size,shuffle=True)
