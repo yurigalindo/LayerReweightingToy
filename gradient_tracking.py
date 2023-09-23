@@ -8,16 +8,18 @@ from torch import nn
 import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
+from models import resnet
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,model,batch_size=None,bottle_size=32,frequency=10,):
+def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,model,verbose=False,batch_size=None,bottle_size=32,frequency=10,):
   if isinstance(model,nn.Module):
     NN = model
   else:
     NN = model.NN
   
   optimizer = torch.optim.Adam(NN.parameters())
+  # optimizer = torch.optim.SGD(NN.parameters(),lr=1e-3,weight_decay=1e-2,momentum=0.9) # WaterBirds
   loss_f = nn.CrossEntropyLoss()
   global grad
   grad = 0 # global variable using for storing grad of pool layer
@@ -26,6 +28,8 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
     grad = torch.squeeze(z[0])
   if isinstance(model,nn.Module):
     NN.pool.register_backward_hook(update_grad) # registering hook for storing grad
+  elif isinstance(model,resnet):
+    NN.avgpool.register_backward_hook(update_grad)
   else:
     NN.embeds[-1].register_backward_hook(update_grad) # registering hook for storing grad
 
@@ -36,24 +40,31 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
     output = torch.squeeze(z[0])
   if isinstance(model,nn.Module): 
     NN.pool.register_forward_hook(update_output) # registering hook for storing output
+  elif isinstance(model,resnet):
+    NN.avgpool.register_forward_hook(update_output) 
   else:
-    NN.embeds[-1].register_forward_hook(update_output) # registering hook for storing output
+    NN.embeds[-1].register_forward_hook(update_output)
   
   valid,test = random_set.train_test_split(test_size=0.5)
   if batch_size is not None:
-    valid = DataLoader(valid,batch_size,shuffle=True) # Create dataloaders when batching is necessary
-    test = DataLoader(test,batch_size,shuffle=False)
+    valid = torch.utils.data.DataLoader(valid,batch_size,shuffle=True) # Create dataloaders when batching is necessary
+    test = torch.utils.data.DataLoader(test,batch_size,shuffle=False)
 
   clean_grads = []
   noisy_grads = []
   clean_outputs = []
   noisy_outputs = []
   LLR_accs = []
+  best_acc = None
   for i in range(epochs//frequency):
     # Get LLR acc
     model.last_layer_reweight()
     model.train(None,valid)
-    LLR_accs.append(model.get_acc(test))
+    acc = model.get_acc(test)
+    LLR_accs.append(acc)
+    if best_acc is None or acc > best_acc:
+      best_acc = acc
+      llr_weights = torch.squeeze(torch.tensor(model.logistic.coef_)) # get weights
     model.logistic = None # Undo LLR
 
     clean_grads.append(torch.zeros(len(clean_set),bottle_size)) # initialize tensor for grads for whole dataset at this epoch
@@ -63,7 +74,7 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
       y = torch.unsqueeze(torch.tensor(y).to(device),0)
       optimizer.zero_grad()
       pred = NN(x)
-      loss = loss_f(pred,y.type(torch.LongTensor))
+      loss = loss_f(pred,y.type(torch.cuda.LongTensor))
       loss.backward()
       clean_grads[i][j,:] = grad.clone()
       clean_outputs[i][j,:] = output.clone().detach()
@@ -75,12 +86,12 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
       y = torch.unsqueeze(torch.tensor(y).to(device),0)
       optimizer.zero_grad()
       pred = NN(x)
-      loss = loss_f(pred,y.type(torch.LongTensor))
+      loss = loss_f(pred,y.type(torch.cuda.LongTensor))
       loss.backward()
       noisy_grads[i][j,:] = grad.clone()
       noisy_outputs[i][j,:] = output.clone().detach()
 
-    model.train(frequency,in_loader,optim=optimizer) # train model normally in in_set for f epochs
+    model.train(frequency,in_loader,optim=optimizer,verbose=verbose) # train model normally in in_set for f epochs
   
   i = i+1
   # get grads for final time
@@ -91,7 +102,8 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
     y = torch.unsqueeze(torch.tensor(y).to(device),0)
     optimizer.zero_grad()
     pred = NN(x)
-    loss = loss_f(pred,y.type(torch.LongTensor))
+    loss = loss_f(pred,y.type(torch.cuda.LongTensor))
+    #loss = loss_f(pred,y.type(torch.LongTensor))
     loss.backward()
     clean_grads[i][j,:] = grad.clone()
     clean_outputs[i][j,:] = output.clone().detach()
@@ -104,15 +116,18 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
     y = torch.unsqueeze(torch.tensor(y).to(device),0)
     optimizer.zero_grad()
     pred = NN(x)
-    loss = loss_f(pred,y.type(torch.LongTensor))
+    loss = loss_f(pred,y.type(torch.cuda.LongTensor))
     loss.backward()
     noisy_grads[i][j,:] = grad.clone()
     noisy_outputs[i][j,:] = output.clone().detach()
   
   model.last_layer_reweight()
   model.train(None,valid) # fit LLR for random set
-  LLR_accs.append(model.get_acc(test))
-  llr_weights = torch.squeeze(torch.tensor(model.logistic.coef_)) # get weights
+  acc = model.get_acc(test)
+  LLR_accs.append(acc)
+  if best_acc is None or acc > best_acc:
+      best_acc = acc
+      llr_weights = torch.squeeze(torch.tensor(model.logistic.coef_)) # get weights
   
   # get inner product between weights 1 x w and all gradients n*epochs x w - > grad *  w.T = n x 1
   clean_dataset = pd.DataFrame({"point_id":np.arange(len(clean_grads[0]))}) # dataframe with points
@@ -139,8 +154,11 @@ def track_gradients_experiment(epochs,clean_set,noisy_set,in_loader,random_set,m
   # get weights
   # get inner product between weights and all gradients
 
+  if verbose:
+    plt.show()
   plt.plot(LLR_accs)
-  return dataset
+  plt.show()
+  return LLR_accs, dataset
 
 
 class CNN(nn.Module):
