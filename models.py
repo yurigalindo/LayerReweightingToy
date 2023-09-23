@@ -8,6 +8,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from collections import OrderedDict
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 class model():
     def last_layer_reweight(self):
         for param in self.NN.embeds.parameters():
@@ -180,14 +182,19 @@ class bottle_logistic(bottleNN):
 
 
 class resnet(model):
-    def __init__(self,model,out=2,batch_size=128):
-        model.fc = torch.nn.Linear(model.fc.in_features,out)
+    def __init__(self,model,out=2,batch_size=128,max_batch=1024):
+        model.fc = torch.nn.Linear(model.fc.in_features,out).to(device)
         self.original = copy.deepcopy(model)
         self.NN = model
         self.batch_size = batch_size
-    def train(self,epochs,dataset,verbose=False):
+        self.max_batch = max_batch
+    def train(self,epochs,dataset,verbose=False,optim=None):
+        self.NN.train()
         criterion = torch.nn.CrossEntropyLoss()
-        optimizer = torch.optim.Adam(self.NN.parameters())
+        if optim:
+            optimizer = optim
+        else:
+            optimizer = torch.optim.SGD(self.NN.parameters(),lr=1e-3,weight_decay=1e-2,momentum=0.9)
         losses = []
         accs = []
         total = len(dataset)
@@ -196,6 +203,7 @@ class resnet(model):
             cum_loss = 0
             cum_correct = 0
             for x,y in dataloader:
+                x,y = x.to(device),y.to(device)
                 optimizer.zero_grad()
 
                 preds = self.NN(x)
@@ -216,11 +224,13 @@ class resnet(model):
             ax.plot(accs)
             fig.show()
     def get_acc(self,dataset):
+        self.NN.eval()
         with torch.no_grad():
             total = len(dataset)
-            dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.batch_size*2,shuffle=True)
+            dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.max_batch,shuffle=False)
             cum_correct = 0
             for x,y in dataloader:
+                x,y = x.to(device),y.to(device)
                 preds = self.NN(x)
                 predictions = torch.argmax(preds,dim=1)
                 cum_correct += (predictions == y).float().sum().item()
@@ -234,63 +244,72 @@ class resnet(model):
         self.NN = self.original
 
 class resnet_logistic(resnet):
-    def __init__(self,model,out=2,batch_size=128,**logistic_args):
-        super().__init__(model,out,batch_size)
+    def __init__(self,model,out=2,batch_size=128,max_batch=1024,**logistic_args):
+        super().__init__(model,out,batch_size,max_batch)
         self.logistic = None
         self.logistic_args = logistic_args
     def last_layer_reweight(self):
-        for param in self.NN.parameters():
-            param.requires_grad = False
         self.logistic = LogisticRegression(**self.logistic_args)
         self.scaler = StandardScaler()
-    def train(self,epochs,dataset,verbose=False):
+    def train(self,epochs,dataset,verbose=False,optim=None):
         if self.logistic is None:
-            return super().train(epochs,dataset,verbose)
+            return super().train(epochs,dataset,verbose,optim)
         # put a logistic on top
-        dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
-        x,y = next(iter(dataloader))
-        with torch.no_grad():
-            # get embeds
-            x = self.NN.conv1(x)
-            x = self.NN.bn1(x)
-            x = self.NN.relu(x)
-            x = self.NN.maxpool(x)
+        dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.max_batch)
+        all_embeddings = []
+        all_y = []
+        self.NN.eval()
+        for x, y in dataloader:
+            x,y = x.to(device),y.to(device)
+            with torch.no_grad():
+                # get embeds
+                x = self.NN.conv1(x)
+                x = self.NN.bn1(x)
+                x = self.NN.relu(x)
+                x = self.NN.maxpool(x)
 
-            x = self.NN.layer1(x)
-            x = self.NN.layer2(x)
-            x = self.NN.layer3(x)
-            x = self.NN.layer4(x)
+                x = self.NN.layer1(x)
+                x = self.NN.layer2(x)
+                x = self.NN.layer3(x)
+                x = self.NN.layer4(x)
 
-            x = self.NN.avgpool(x)
-            x = torch.flatten(x, 1)
-        x = x.detach().numpy()
-        x = self.scaler.fit_transform(x)
-        y = y.numpy()
-        self.logistic.fit(x,y)
+                x = self.NN.avgpool(x)
+                x = torch.flatten(x, 1)
+                all_embeddings.append(x.detach().cpu().numpy())
+                all_y.append(y.detach().cpu().numpy())
+        
+        all_embeddings = np.vstack(all_embeddings)
+        all_embeddings= self.scaler.fit_transform(all_embeddings)
+        all_y = np.concatenate(all_y)
+        self.logistic = self.logistic.fit(all_embeddings, all_y)
     def get_acc(self,dataset):
         if self.logistic is None:
             return super().get_acc(dataset)
-        dataloader = torch.utils.data.DataLoader(dataset,batch_size=len(dataset)+1)
-        x,y = next(iter(dataloader))
-        with torch.no_grad():
-            # get embeds
-            x = self.NN.conv1(x)
-            x = self.NN.bn1(x)
-            x = self.NN.relu(x)
-            x = self.NN.maxpool(x)
+        dataloader = torch.utils.data.DataLoader(dataset,batch_size=self.max_batch)
+        all_embeddings = []
+        all_y = []
+        for x, y in dataloader:
+            x,y = x.to(device),y.to(device)
+            with torch.no_grad():
+                # get embeds
+                x = self.NN.conv1(x)
+                x = self.NN.bn1(x)
+                x = self.NN.relu(x)
+                x = self.NN.maxpool(x)
 
-            x = self.NN.layer1(x)
-            x = self.NN.layer2(x)
-            x = self.NN.layer3(x)
-            x = self.NN.layer4(x)
+                x = self.NN.layer1(x)
+                x = self.NN.layer2(x)
+                x = self.NN.layer3(x)
+                x = self.NN.layer4(x)
 
-            x = self.NN.avgpool(x)
-            x = torch.flatten(x, 1)
-        x = x.detach().numpy()
-        x = self.scaler.transform(x)
-        preds = self.logistic.predict(x)
-        correct = (preds == y.numpy()).sum()
-        return correct/len(y)
+                x = self.NN.avgpool(x)
+                x = torch.flatten(x, 1)
+                all_embeddings.append(x.detach().cpu().numpy())
+                all_y.append(y.detach().cpu().numpy())
+        all_embeddings = np.vstack(all_embeddings)
+        all_embeddings = self.scaler.transform(all_embeddings)
+        all_y = np.concatenate(all_y)
+        return self.logistic.score(all_embeddings, all_y)
 
 
 ## MNIST
@@ -389,9 +408,9 @@ class CNN(nn.Module):
         if verbose:
                 fig = plt.figure()
                 ax = fig.add_subplot()
-                ax.plot(losses)
+                ax.plot(losses,label="loss")
                 fig.show()
-                ax.plot(accs)
+                ax.plot(accs,label="acc")
                 fig.show()
     def _llr_train(self,loader):
         all_embeddings = []
